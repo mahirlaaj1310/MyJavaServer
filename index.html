@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Guess My Number — Browser Edition</title>
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, Roboto, "Segoe UI", sans-serif;
+           display:flex;align-items:center;justify-content:center;height:100vh;margin:0;
+           background:linear-gradient(135deg,#0f172a 0%, #0f2940 100%); color:#e6eef8; }
+    .card { width:360px; background:rgba(255,255,255,0.03); padding:20px; border-radius:12px;
+           box-shadow:0 8px 30px rgba(2,6,23,0.6); }
+    h1 { margin:0 0 8px 0; font-size:20px; color:#fff; }
+    p.sub { margin:0 0 16px 0; font-size:13px; color:#bcd3f5; opacity:0.9; }
+    .row { display:flex; gap:8px; margin-bottom:12px; }
+    input[type="number"]{flex:1;padding:10px;border-radius:8px;border:none;background:rgba(255,255,255,0.03);
+                          color:#fff;font-size:16px; outline: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);}
+    button{padding:10px 12px;border-radius:8px;border:none;background:#2b6cb0;color:white;font-weight:600;cursor:pointer;}
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);}
+    .log{min-height:70px;padding:10px;border-radius:8px;background:rgba(0,0,0,0.18);font-size:14px;color:#e6eef8;overflow:auto}
+    .meta{display:flex;justify-content:space-between;margin-top:12px;font-size:13px;color:#c8dbf8}
+    .small{font-size:12px;color:#9fb6e0}
+    .green{color:#9ef5b0}
+    .red{color:#ffb3b3}
+  </style>
+</head>
+<body>
+  <div class="card" role="application" aria-label="Guess My Number Game">
+    <h1>Guess My Number — Browser Edition</h1>
+    <p class="sub">Number between <strong id="min">1</strong> and <strong id="max">10</strong>. New round every <span id="roundSec">60</span>s.</p>
+
+    <div class="row">
+      <input id="guessInput" type="number" min="1" max="10" placeholder="Type your guess (1-10)" />
+      <button id="guessBtn">Guess</button>
+    </div>
+
+    <div class="log" id="log" aria-live="polite">Welcome! Enter a number and press Guess.</div>
+
+    <div class="meta">
+      <div class="small">Attempts: <span id="attempts">0</span></div>
+      <div class="small">Score: <span id="score">0</span></div>
+      <div class="small">Time left: <strong id="timer">60</strong>s</div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button id="newRound" class="secondary">New Round Now</button>
+      <button id="reset" class="secondary">Reset Score</button>
+    </div>
+    <p class="small" style="margin-top:10px;color:#9fb6e0">
+      Note: This works offline in browser. To share, upload index.html to GitHub Pages or Replit.
+    </p>
+  </div>
+
+  <script>
+    // Game settings (match Java constants)
+    const MIN = 1;
+    const MAX = 10;
+    const ROUND_INTERVAL_MS = 60_000; // 60 seconds
+
+    // State
+    let secret = randInt(MIN, MAX);
+    let attempts = 0;
+    let score = 0;
+    let roundStart = Date.now();
+    let timerInterval = null;
+
+    // Elements
+    const guessInput = document.getElementById('guessInput');
+    const guessBtn = document.getElementById('guessBtn');
+    const log = document.getElementById('log');
+    const attemptsEl = document.getElementById('attempts');
+    const scoreEl = document.getElementById('score');
+    const timerEl = document.getElementById('timer');
+    const newRoundBtn = document.getElementById('newRound');
+    const resetBtn = document.getElementById('reset');
+    document.getElementById('min').innerText = MIN;
+    document.getElementById('max').innerText = MAX;
+    document.getElementById('roundSec').innerText = Math.round(ROUND_INTERVAL_MS / 1000);
+
+    // Helpers
+    function randInt(a, b){
+      return Math.floor(Math.random() * (b - a + 1)) + a;
+    }
+    function appendLog(msg, cls){
+      const time = new Date().toLocaleTimeString();
+      log.innerHTML = `<div${cls?` class="${cls}"`:''}>[${time}] ${msg}</div>` + log.innerHTML;
+    }
+    function startTimer(){
+      clearInterval(timerInterval);
+      roundStart = Date.now();
+      timerInterval = setInterval(()=>{
+        const elapsed = Date.now() - roundStart;
+        const left = Math.max(0, Math.ceil((ROUND_INTERVAL_MS - elapsed) / 1000));
+        timerEl.innerText = left;
+        if (left <= 0) {
+          appendLog(`Round ended. Secret was ${secret}. Starting new round.`, 'small');
+          newRound();
+        }
+      }, 250);
+    }
+
+    // Game actions
+    function processGuess(){
+      const raw = guessInput.value;
+      if (raw === '') { appendLog('Please enter a number between ' + MIN + ' and ' + MAX + '.', 'small'); return; }
+      const g = Number(raw);
+      if (!Number.isInteger(g) || g < MIN || g > MAX){
+        appendLog('Invalid guess. Enter an integer between ' + MIN + ' and ' + MAX + '.', 'red');
+        return;
+      }
+      attempts++;
+      attemptsEl.innerText = attempts;
+      if (g === secret){
+        // reward
+        const earned = Math.max(1, 11 - attempts); // better if fewer attempts
+        score += earned;
+        scoreEl.innerText = score;
+        appendLog(`Correct! You guessed ${g} in ${attempts} attempt(s). +${earned} pts.`, 'green');
+        // start new round automatically
+        setTimeout(()=> newRound(), 800);
+      } else if (g < secret) {
+        appendLog(`Your guess ${g} is too low.`, 'small');
+      } else {
+        appendLog(`Your guess ${g} is too high.`, 'small');
+      }
+      guessInput.value = '';
+      guessInput.focus();
+    }
+
+    function newRound(){
+      secret = randInt(MIN, MAX);
+      attempts = 0;
+      attemptsEl.innerText = attempts;
+      roundStart = Date.now();
+      appendLog('New round started! Guess a number between '+MIN+' and '+MAX+'.', 'small');
+      startTimer();
+    }
+
+    function resetGame(){
+      score = 0;
+      scoreEl.innerText = score;
+      appendLog('Score reset.');
+    }
+
+    // Events
+    guessBtn.addEventListener('click', processGuess);
+    guessInput.addEventListener('keydown', e => { if (e.key === 'Enter') processGuess(); });
+    newRoundBtn.addEventListener('click', ()=> {
+      appendLog('Manual round restart requested.');
+      newRound();
+    });
+    resetBtn.addEventListener('click', ()=> {
+      if (confirm('Reset total score?')) resetGame();
+    });
+
+    // Init
+    appendLog('Welcome! Game initialized. Secret number chosen. Good luck!');
+    startTimer();
+    guessInput.focus();
+  </script>
+</body>
+</html>
